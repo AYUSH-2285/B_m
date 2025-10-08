@@ -36,7 +36,7 @@ DEFAULT_COMMANDS = ['/explore', '/dice', '/bowling', '/lever']
 LOG_DIR = os.path.join('data', 'logs')
 SESSION_DIR = os.path.join('data', 'sessions')
 SUMMARY_DIR = os.path.join('data', 'summary')
-COMMAND_COOLDOWN = 129.0  # seconds
+COMMAND_COOLDOWN = 125.0  # seconds
 ALMOST_READY_THRESHOLD = 2.0  # seconds left to log "almost ready"
 
 # Patterns to parse responses (tweak if Yamato bot text differs)
