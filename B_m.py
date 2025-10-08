@@ -332,4 +332,4 @@ if __name__ == '__main__':
     main()
 
 
-#   python waifu_miner.py --session <user id> --api-id <> --api-hash <> --bot "@ _bot"
+#   python B_m.py --session <user id> --api-id <> --api-hash <> --bot "@ _bot"
