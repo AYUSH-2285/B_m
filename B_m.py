@@ -32,7 +32,7 @@ except Exception:
     TELETHON_AVAILABLE = False
 
 # ---------------- config ----------------
-DEFAULT_COMMANDS = ['/explore', '/dice', '/bowling', '/lever']
+DEFAULT_COMMANDS = [ '/dice', '/bowling', '/lever', '/explore']
 LOG_DIR = os.path.join('data', 'logs')
 SESSION_DIR = os.path.join('data', 'sessions')
 SUMMARY_DIR = os.path.join('data', 'summary')
