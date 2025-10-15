@@ -1,20 +1,15 @@
 #!/usr/bin/env python3
 """
-B_m.py — Real-ready Waifu Berry Miner (single-file)
+waifu_miner.py — Real-ready Waifu Berry Miner (auto-start CLI, restartable)
 
 Features:
-- Simulation mode (default) so you can test safely.
-- Real Telegram mode using Telethon (provide --api-id and --api-hash and --bot).
-- Commands: /explore, /dice, /bowling, /lever (no /spin, no /yclaim).
-- Per-command cooldown (125s). Only log cooldowns when <2s remaining.
-- Interactive CLI: start | stop | exit
-- Logs to data/logs/<session>.log and writes summary to data/summary/
-- Fully 2FA compatible
+- Automatically starts mining upon launch
+- CLI accepts 'start', 'stop', 'exit' — you can pause/resume mining anytime
+- Removed CSV saving (only JSON summaries)
 """
 
 import argparse
 import asyncio
-import csv
 import json
 import logging
 import os
@@ -23,7 +18,6 @@ import re
 import sys
 from datetime import datetime
 
-# Try Telethon
 try:
     from telethon import TelegramClient, events
     from telethon.errors import RPCError
@@ -31,20 +25,17 @@ try:
 except Exception:
     TELETHON_AVAILABLE = False
 
-# ---------------- config ----------------
-DEFAULT_COMMANDS = [ '/dice', '/bowling', '/lever', '/explore']
+DEFAULT_COMMANDS = ['/dice', '/bowling', '/lever', '/explore']
 LOG_DIR = os.path.join('data', 'logs')
 SESSION_DIR = os.path.join('data', 'sessions')
 SUMMARY_DIR = os.path.join('data', 'summary')
-COMMAND_COOLDOWN = 125.0  # seconds
-ALMOST_READY_THRESHOLD = 2.0  # seconds left to log "almost ready"
+COMMAND_COOLDOWN = 125.0
+ALMOST_READY_THRESHOLD = 2.0
 
-# Patterns to parse responses (tweak if Yamato bot text differs)
 RE_BERRIES = re.compile(r'discovered (\d+) Berries|You gained (\d+) Berries|Berries: (\d+)', re.I)
 RE_CRYSTALS = re.compile(r'([0-9]+) Crystals|crystal[s]?:? (\d+)', re.I)
 RE_WAIFU = re.compile(r'got (?:a |an )?(.+? Waifu)|You obtained (.+? Waifu)', re.I)
 
-# ---------------- utilities ----------------
 def ensure_dirs():
     os.makedirs(LOG_DIR, exist_ok=True)
     os.makedirs(SESSION_DIR, exist_ok=True)
@@ -70,13 +61,12 @@ def make_logger(session_id):
         logger.addHandler(sh)
     return logger, logfile
 
-# ---------------- simulation (safe) ----------------
 async def simulate_send(session_id, command, logger, summary):
     await asyncio.sleep(random.uniform(0.2, 1.2))
     logger.info(f"{session_id}: sent {command}")
     if command == '/explore':
         berries = random.randint(5, 800)
-        text = f"{ts()} [simulated session]: /explore result: 🎉 You uncovered ancient ruins and discovered {berries} Berries! 💰"
+        text = f"{ts()} [simulated session]: /explore result: 🎉 You uncovered ruins and discovered {berries} Berries! 💰"
         logger.info(text)
         extract_and_record(text, summary, logger)
         return text
@@ -85,7 +75,6 @@ async def simulate_send(session_id, command, logger, summary):
         logger.info(text)
         return text
 
-# ---------------- parsing & summary ----------------
 def extract_and_record(text, summary, logger):
     b = RE_BERRIES.search(text)
     if b:
@@ -107,13 +96,12 @@ def extract_and_record(text, summary, logger):
         if waifu:
             summary['waifus'].append({'time': ts(), 'waifu': waifu, 'text': text})
             summary['events'].append({'time': ts(), 'type': 'waifu', 'name': waifu, 'text': text})
-            logger.info(f"[parsed] Obtained waifu: {waifu}")
+            logger.info(f"[parsed] Got waifu: {waifu}")
 
-# ---------------- RealClient (Telethon) ----------------
 class RealClient:
     def __init__(self, api_id, api_hash, session_name, bot_username, logger, summary):
         if not TELETHON_AVAILABLE:
-            raise RuntimeError("Telethon is not available. Install with: pip install telethon")
+            raise RuntimeError("Telethon is not available. pip install telethon")
         self.api_id = api_id
         self.api_hash = api_hash
         self.session_name = os.path.join(SESSION_DIR, session_name)
@@ -147,7 +135,6 @@ class RealClient:
         await self.client.disconnect()
         self.logger.info(f"{ts()} {self.session_name}: real client stopped")
 
-# ---------------- Miner core ----------------
 class Miner:
     def __init__(self, session_id, commands=None, simulate=True, api_id=None, api_hash=None, bot=None):
         self.session_id = str(session_id)
@@ -156,7 +143,6 @@ class Miner:
         self.api_id = api_id
         self.api_hash = api_hash
         self.bot = bot
-
         self.logger, _ = make_logger(self.session_id)
         self.running = False
         self.summary = {'berries_total': 0, 'crystals_total': 0, 'waifus': [], 'events': []}
@@ -166,15 +152,13 @@ class Miner:
             if not TELETHON_AVAILABLE:
                 raise RuntimeError("Telethon not installed; pip install telethon")
             self.real_client = RealClient(self.api_id, self.api_hash, self.session_id, self.bot, self.logger, self.summary)
+        self._task = None
 
-    async def start(self):
+    async def run(self):
         self.running = True
         self.logger.info(f"{ts()} {self.session_id}: miner started")
-        print(f"Miner running for session {self.session_id}… Press Ctrl+C to stop.\n")
-
         if self.real_client:
             await self.real_client.start()
-
         try:
             while self.running:
                 now = datetime.now()
@@ -202,88 +186,56 @@ class Miner:
             self._write_summary()
             self.logger.info(f"{ts()} {self.session_id}: miner stopped")
 
+    def start(self, loop):
+        if not self.running:
+            self._task = loop.create_task(self.run())
+            print("Miner started.")
+
     def stop(self):
-        self.running = False
+        if self.running:
+            self.running = False
+            print("Miner stopped.")
+
+    def is_running(self):
+        return self.running
 
     def _write_summary(self):
         ensure_dirs()
         fname = os.path.join(SUMMARY_DIR, f'{self.session_id}_summary_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json')
         with open(fname, 'w', encoding='utf-8') as f:
             json.dump(self.summary, f, ensure_ascii=False, indent=2)
-        csvf = os.path.join(SUMMARY_DIR, f'{self.session_id}_events_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv')
-        with open(csvf, 'w', newline='', encoding='utf-8') as cf:
-            writer = csv.writer(cf)
-            writer.writerow(['time', 'type', 'detail'])
-            for e in self.summary['events']:
-                if e['type'] == 'berries':
-                    writer.writerow([e['time'], 'berries', e.get('amount')])
-                elif e['type'] == 'crystals':
-                    writer.writerow([e['time'], 'crystals', e.get('amount')])
-                elif e['type'] == 'waifu':
-                    writer.writerow([e['time'], 'waifu', e.get('name')])
-                else:
-                    writer.writerow([e['time'], e.get('type'), json.dumps(e)])
-        self.logger.info(f"Summary written: {fname} and {csvf}")
+        self.logger.info(f"Summary written: {fname}")
 
-# ---------------- CLI ----------------
-async def interactive_cli(miner: Miner):
-    task = None
-    print("Interactive miner control (type start / stop / exit):")
+async def cli_interface(miner):
+    print("Type 'start', 'stop', or 'exit' to control miner.\n")
     loop = asyncio.get_event_loop()
-    try:
-        while True:
-            cmd = await loop.run_in_executor(None, sys.stdin.readline)
-            if cmd is None:
-                await asyncio.sleep(0.1)
-                continue
-            cmd = cmd.strip().lower()
-            if cmd == 'start':
-                if miner.running:
-                    print("Miner already running.")
-                else:
-                    task = asyncio.create_task(miner.start())
-                    print("Miner started.")
-            elif cmd == 'stop':
-                if miner.running:
-                    miner.stop()
-                    await asyncio.sleep(1)
-                    if task:
-                        task.cancel()
-                        try:
-                            await task
-                        except Exception:
-                            pass
-                    print("Miner stopped.")
-                else:
-                    print("Miner is not running.")
-            elif cmd == 'exit':
-                print("Exiting... stopping miner if running.")
-                if miner.running:
-                    miner.stop()
-                    await asyncio.sleep(1)
-                    if task:
-                        task.cancel()
-                        try:
-                            await task
-                        except Exception:
-                            pass
-                break
-            elif cmd == '':
-                continue
+    miner.start(loop)
+    while True:
+        cmd = await loop.run_in_executor(None, sys.stdin.readline)
+        cmd = cmd.strip().lower()
+        if cmd == 'start':
+            if miner.is_running():
+                print("Miner already running.")
             else:
-                print("Unknown command. Use: start | stop | exit")
-    except (KeyboardInterrupt, asyncio.CancelledError):
-        print("\nInterrupted — stopping miner.")
-        if miner.running:
+                miner.start(loop)
+        elif cmd == 'stop':
+            if not miner.is_running():
+                print("Miner is not running.")
+            else:
+                miner.stop()
+        elif cmd == 'exit':
             miner.stop()
-        if task:
-            task.cancel()
-            try:
-                await task
-            except Exception:
-                pass
+            if miner._task:
+                miner._task.cancel()
+                try:
+                    await miner._task
+                except Exception:
+                    pass
+            print("Exiting miner.")
+            break
+        else:
+            print("Unknown command. Use: start | stop | exit")
 
-# ---------------- Main ----------------
 async def main_async(args):
     miner = Miner(
         session_id=args.session,
@@ -293,22 +245,15 @@ async def main_async(args):
         api_hash=args.api_hash,
         bot=args.bot
     )
-
     if not miner.simulate and not TELETHON_AVAILABLE:
-        print("Real mode requested but Telethon is not installed. pip install telethon")
+        print("Real mode requested but Telethon not installed. pip install telethon")
         return
-
-    # ---- login first ----
-    if miner.real_client:
-        await miner.real_client.start()  # phone → code → 2FA handled here
-        print(f"Logged in successfully as session {args.session}")
-
-    await interactive_cli(miner)
+    await cli_interface(miner)
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Waifu Berry Miner — real-ready")
+    p = argparse.ArgumentParser(description="Waifu Berry Miner — auto-start CLI, restartable")
     p.add_argument('--session', required=True, help='Session id to identify logs/sessions')
-    p.add_argument('--simulate', action='store_true', default=False, help='Run in simulation mode (safe)')
+    p.add_argument('--simulate', action='store_true', default=False, help='Run in simulation mode')
     p.add_argument('--api-id', type=int, help='Telegram API ID (for real mode)')
     p.add_argument('--api-hash', help='Telegram API Hash (for real mode)')
     p.add_argument('--bot', help='Bot username (e.g. @YamatoAcn_bot) for real mode')
@@ -318,18 +263,15 @@ def parse_args():
 def main():
     args = parse_args()
     if not args.simulate and not (args.api_id and args.api_hash and args.bot):
-        print("No Telethon credentials provided — defaulting to simulation mode for safety.")
+        print("Missing Telethon info — defaulting to simulation mode.")
         args.simulate = True
     try:
         asyncio.run(main_async(args))
     except KeyboardInterrupt:
         print("Interrupted — exiting.")
-    except Exception as e:
-        print("Error:", e)
-        raise
 
 if __name__ == '__main__':
     main()
 
 
-#   python B_m.py --session <user id> --api-id <> --api-hash <> --bot "@ _bot"
+# python B_m2.py --session 6503568906 --api-id 22909508 --api-hash e4edd9c94fc33e0bddc6089f7fd7664a --bot "@YamatoAcn_bot"
