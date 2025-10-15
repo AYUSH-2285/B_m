@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-waifu_miner.py — Real-ready Waifu Berry Miner (auto-start CLI, restartable)
+B_m.py — Real-ready Waifu Berry Miner (auto-start CLI, restartable)
 
 Features:
 - Automatically starts mining upon launch
