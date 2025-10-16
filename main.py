@@ -274,4 +274,4 @@ if __name__ == '__main__':
     main()
 
 
-# python B_m2.py --session 6503568906 --api-id 22909508 --api-hash e4edd9c94fc33e0bddc6089f7fd7664a --bot "@YamatoAcn_bot"
+# python main.py --session 6503568906 --api-id 22909508 --api-hash e4edd9c94fc33e0bddc6089f7fd7664a --bot "@YamatoAcn_bot"
