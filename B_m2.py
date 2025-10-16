@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """
-main.py — Real-ready Waifu Berry Miner (auto-start with Railway env check)
-
+B_m2.py — Real-ready Waifu Berry Miner (auto-start CLI, restartable)
 
 Features:
-- Automatically starts mining upon launch on Railway
-- CLI accepts 'start', 'stop', 'exit' locally for manual control
+- Automatically starts mining upon launch
+- CLI accepts 'start', 'stop', 'exit' — you can pause/resume mining anytime
 - Removed CSV saving (only JSON summaries)
 """
 
@@ -249,12 +248,7 @@ async def main_async(args):
     if not miner.simulate and not TELETHON_AVAILABLE:
         print("Real mode requested but Telethon not installed. pip install telethon")
         return
-
-    if os.getenv("RAILWAY_ENV"):
-        print("Detected Railway environment – starting miner without CLI")
-        await miner.run()  # Run miner until stop/cancelled
-    else:
-        await cli_interface(miner)
+    await cli_interface(miner)
 
 def parse_args():
     p = argparse.ArgumentParser(description="Waifu Berry Miner — auto-start CLI, restartable")
@@ -278,3 +272,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+# python B_m2.py --session 6503568906 --api-id 22909508 --api-hash e4edd9c94fc33e0bddc6089f7fd7664a --bot "@YamatoAcn_bot"
