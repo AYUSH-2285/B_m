@@ -31,7 +31,7 @@ LOG_DIR = os.path.join('data', 'logs')
 SESSION_DIR = os.path.join('data', 'sessions')
 SUMMARY_DIR = os.path.join('data', 'summary')
 COMMAND_COOLDOWN = 125.0
-ALMOST_READY_THRESHOLD = 2.0
+ALMOST_READY_THRESHOLD = 1.0
 
 RE_BERRIES = re.compile(r'discovered (\d+) Berries|You gained (\d+) Berries|Berries: (\d+)', re.I)
 RE_CRYSTALS = re.compile(r'([0-9]+) Crystals|crystal[s]?:? (\d+)', re.I)
